@@ -3,10 +3,12 @@ package com.fsa_hw_02.batch.config;
 import com.fsa_hw_02.batch.listener.JobCompletionListener;
 import com.fsa_hw_02.batch.listener.PostProcessListener;
 import com.fsa_hw_02.batch.model.PostDTO;
+import com.fsa_hw_02.batch.processor.PostItemProcessor;
 import com.fsa_hw_02.batch.writer.CustomItemWriter;
 import com.fsa_hw_02.batch.writer.ErrorReportWriter;
 import com.fsa_hw_02.exception.PostProcessingException;
 import com.fsa_hw_02.model.Post;
+import com.fsa_hw_02.service.CsvFileGenerator;
 import org.springframework.batch.core.Job;
 import org.springframework.batch.core.Step;
 import org.springframework.batch.core.configuration.annotation.EnableBatchProcessing;
@@ -23,6 +25,7 @@ import org.springframework.batch.item.file.mapping.BeanWrapperFieldSetMapper;
 import org.springframework.batch.item.file.mapping.DefaultLineMapper;
 import org.springframework.batch.item.file.transform.DelimitedLineTokenizer;
 import org.springframework.batch.item.support.CompositeItemWriter;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -37,6 +40,9 @@ import java.util.List;
 @Configuration
 @EnableBatchProcessing(dataSourceRef = "batchDataSource", transactionManagerRef = "batchTransactionManager")
 public class BatchConfig {
+
+    @Autowired
+    private CsvFileGenerator csvFileGenerator;
 
     @Bean
     public JobRepository jobRepository(
@@ -81,6 +87,7 @@ public class BatchConfig {
                 .skipLimit(10)
                 .skip(PostProcessingException.class)
                 .listener(postProcessListener())
+                .listener(postItemProcessor())
                 .build();
     }
 
@@ -118,6 +125,11 @@ public class BatchConfig {
     @Bean
     public PostProcessListener postProcessListener() {
         return new PostProcessListener();
+    }
+
+    @Bean
+    public PostItemProcessor postItemProcessor() {
+        return new PostItemProcessor(csvFileGenerator);
     }
 
     @Bean

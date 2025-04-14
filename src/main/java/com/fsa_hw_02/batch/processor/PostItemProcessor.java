@@ -5,9 +5,13 @@ import com.fsa_hw_02.enums.PostStatus;
 import com.fsa_hw_02.exception.PostProcessingException;
 import com.fsa_hw_02.model.Post;
 import com.fsa_hw_02.service.CsvFileGenerator;
+import org.springframework.batch.core.StepExecution;
+import org.springframework.batch.core.annotation.BeforeStep;
+import org.springframework.batch.item.ExecutionContext;
 import org.springframework.batch.item.ItemProcessor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
+import org.springframework.batch.core.JobExecution;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -23,6 +27,8 @@ public class PostItemProcessor implements ItemProcessor<PostDTO, Post> {
     private static final String ERROR_AUTHOR_NOT_EXIST = "Author does not exist";
 
     private final CsvFileGenerator csvFileGenerator;
+    private StepExecution stepExecution;
+
 
     // Inject CsvFileGenerator
     @Autowired
@@ -30,22 +36,32 @@ public class PostItemProcessor implements ItemProcessor<PostDTO, Post> {
         this.csvFileGenerator = csvFileGenerator;
     }
 
+    @BeforeStep
+    public void beforeStep(StepExecution stepExecution) {
+        this.stepExecution = stepExecution;
+        // Initialize counters in the step context
+        stepExecution.getExecutionContext().putInt("validCount", 0);
+        stepExecution.getExecutionContext().putInt("invalidCount", 0);
+    }
+
     @Override
     public Post process(PostDTO item) throws PostProcessingException {
         List<String> validationErrors = validatePost(item);
-
         if (!validationErrors.isEmpty()) {
-            // Create a failed post with error reason
+            incrementCounter("invalidCount");
             Post failedPost = convertToFailedPost(String.join("; ", validationErrors));
-
             // Call the CSV file generator to log the errors
             csvFileGenerator.generateErrorReport(List.of(failedPost));
-
-            // Throw exception as intended
             return null;
         }
-
+        incrementCounter("validCount");
         return convertToPost(item);
+    }
+
+    private void incrementCounter(String counterKey) {
+        ExecutionContext context = stepExecution.getExecutionContext();
+        int count = context.getInt(counterKey, 0);
+        context.putInt(counterKey, count + 1);
     }
 
     private List<String> validatePost(PostDTO item) {
@@ -97,5 +113,10 @@ public class PostItemProcessor implements ItemProcessor<PostDTO, Post> {
         post.setErrorReason(error);
         post.setStatus(PostStatus.FAILED);
         return post;
+    }
+
+    private int getExecutionContextValue(JobExecution jobExecution, String key) {
+        Integer value = (Integer) jobExecution.getExecutionContext().get(key);
+        return value != null ? value : 0; // Default to 0 if the value is null
     }
 }

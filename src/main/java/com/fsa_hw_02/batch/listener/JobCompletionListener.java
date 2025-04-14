@@ -2,13 +2,11 @@ package com.fsa_hw_02.batch.listener;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.batch.core.JobExecution;
+import org.springframework.batch.core.*;
 import org.springframework.batch.core.listener.JobExecutionListenerSupport;
 import org.springframework.stereotype.Component;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.batch.core.BatchStatus;
-import org.springframework.batch.core.ExitStatus;
 import org.springframework.batch.core.JobExecution;
 import org.springframework.batch.core.listener.JobExecutionListenerSupport;
 import org.springframework.stereotype.Component;
@@ -18,6 +16,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.ZoneId;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.Date;
 
@@ -32,6 +31,10 @@ public class JobCompletionListener extends JobExecutionListenerSupport {
     public void beforeJob(JobExecution jobExecution) {
         logger.info("!!! BATCH JOB STARTED! Job ID: {}", jobExecution.getJobId());
         logger.debug("Job Parameters: {}", jobExecution.getJobParameters());
+
+        jobExecution.getExecutionContext().put("totalItemsProcessed", 0);
+        jobExecution.getExecutionContext().put("validItems", 0);
+        jobExecution.getExecutionContext().put("invalidItems", 0);
     }
 
     @Override
@@ -58,25 +61,43 @@ public class JobCompletionListener extends JobExecutionListenerSupport {
         Date endTime =  Date.from(Objects.requireNonNull(jobExecution.getEndTime()).atZone(ZoneId.systemDefault())
                 .toInstant());
 
+        int totalValid = 0;
+        int totalInvalid = 0;
+
+        Collection<StepExecution> stepExecutions = jobExecution.getStepExecutions();
+        for (StepExecution stepExecution : stepExecutions) {
+            totalValid += stepExecution.getExecutionContext().getInt("validCount", 0);
+            totalInvalid += stepExecution.getExecutionContext().getInt("invalidCount", 0);
+        }
+
         long duration = startTime.getTime() - endTime.getTime();
         logger.info("!!! BATCH JOB COMPLETED SUCCESSFULLY! Time taken: {} ms", duration);
 
-        generateFinalReport();
+        generateFinalReport(totalValid + totalInvalid, totalValid, totalInvalid);
         cleanupTempFiles();
     }
 
-    private void generateFinalReport() {
+    private void generateFinalReport(int totalItemsProcessed, int successfulItems, int failedItems) {
         try {
+            // Create the report file with a timestamp in the filename
             Path reportPath = Paths.get("batch-report-" + System.currentTimeMillis() + ".txt");
-            String content = "Batch Job Completed at: " + new Date() + "\n";
-            content += "Total Items Processed: [TODO: Add metrics]";
 
+            // Generate content for the report
+            String content = "Batch Job Completed at: " + new Date() + "\n";
+            content += "Total Records Processed: " + totalItemsProcessed + "\n";
+            content += "Successful Records: " + successfulItems + "\n";
+            content += "Failed Records: " + failedItems + "\n";
+
+            // Write the content to the report file
             Files.write(reportPath, content.getBytes());
+
+            // Log the generation of the report
             logger.info("Generated final report: {}", reportPath);
         } catch (IOException e) {
             logger.error("Failed to generate final report: {}", e.getMessage());
         }
     }
+
 
     private void cleanupTempFiles() {
         try {
