@@ -31,7 +31,7 @@ public class CsvFileGeneratorImpl implements CsvFileGenerator {
                         post.getTitle(),
                         post.getContent(),
                         post.getAuthor(),
-                        "Error in this record" // Cần thêm logic lưu thông tin lỗi cụ thể
+                        post.getErrorReason()
                 );
             }
 

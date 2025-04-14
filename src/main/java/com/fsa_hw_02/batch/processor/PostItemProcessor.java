@@ -4,8 +4,9 @@ import com.fsa_hw_02.batch.model.PostDTO;
 import com.fsa_hw_02.enums.PostStatus;
 import com.fsa_hw_02.exception.PostProcessingException;
 import com.fsa_hw_02.model.Post;
-import com.fsa_hw_02.service.PostService;
+import com.fsa_hw_02.service.CsvFileGenerator;
 import org.springframework.batch.item.ItemProcessor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
@@ -21,15 +22,27 @@ public class PostItemProcessor implements ItemProcessor<PostDTO, Post> {
     private static final String ERROR_AUTHOR_REQUIRED = "Author is required";
     private static final String ERROR_AUTHOR_NOT_EXIST = "Author does not exist";
 
+    private final CsvFileGenerator csvFileGenerator;
+
+    // Inject CsvFileGenerator
+    @Autowired
+    public PostItemProcessor(CsvFileGenerator csvFileGenerator) {
+        this.csvFileGenerator = csvFileGenerator;
+    }
+
     @Override
     public Post process(PostDTO item) throws PostProcessingException {
         List<String> validationErrors = validatePost(item);
 
         if (!validationErrors.isEmpty()) {
-            throw new PostProcessingException(
-                    String.join("; ", validationErrors),
-                    convertToFailedPost(String.join("; ", validationErrors))
-            );
+            // Create a failed post with error reason
+            Post failedPost = convertToFailedPost(String.join("; ", validationErrors));
+
+            // Call the CSV file generator to log the errors
+            csvFileGenerator.generateErrorReport(List.of(failedPost));
+
+            // Throw exception as intended
+            return null;
         }
 
         return convertToPost(item);
