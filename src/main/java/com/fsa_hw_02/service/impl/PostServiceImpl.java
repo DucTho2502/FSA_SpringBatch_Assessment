@@ -7,6 +7,8 @@ import com.fsa_hw_02.service.PostService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
+
 @Service
 public class PostServiceImpl implements PostService {
     private final PostRepository repository;
@@ -23,5 +25,10 @@ public class PostServiceImpl implements PostService {
         Post savedPost = repository.save(post);
         cache.put(savedPost, 60_000); // 1 minute TTL
         return savedPost;
+    }
+
+    @Override
+    public List<Post> getAllPosts() {
+        return repository.findAll();
     }
 }
